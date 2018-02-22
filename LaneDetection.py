@@ -7,7 +7,7 @@ import time
 import os.path
 import glob
 from CameraCalibration import CalibrateCamera
-from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold
+from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, mask_region_of_interest
 
     
 def main():
@@ -27,33 +27,63 @@ def main():
     print(calCam.mtx)
     print(calCam.dist)
     # Read in an image
-    #img_orig = mpimg.imread('test_images/straight_lines2.jpg')
-    img_orig = mpimg.imread('test_images/test4.jpg')
+    img_orig = mpimg.imread('test_images/straight_lines2.jpg')
+    #img_orig = mpimg.imread('test_images/test4.jpg')
     #img_orig = mpimg.imread('camera_cal/calibration1.jpg')
 
     img = calCam.undistort(img_orig)
+
+    # define region of interest
+    roi = { 'bottom_y':       img.shape[0]*0.9,
+            'bottom_x_left':  int(img.shape[1]*0.05),
+            'bottom_x_right': int(img.shape[1]*0.95),
+            'top_y':          int(img.shape[0]*0.6),
+            'top_x_left':     int(img.shape[1]*0.45),
+            'top_x_right':    int(img.shape[1]*0.55),            
+          }
+    roi.update({'top_center': int((roi['top_x_left'] + roi['top_x_right']) / 2)})
+    
+    
 
     horizon = 425
 
     #src_points = np.float32([[283, 664], [616, 438], [664, 438],  [1019, 664]])
     #dst_points = np.float32([[283, 664], [283, 0], [1019, 0], [1019, 664]])
+    original_bottom_left_x = 283
+    target_left_x = 300
+    target_right_x = 1002
+    target_top_y = 0
+    target_bottom_y =719
     src_points = np.float32([[283, 664], [542, 480], [732, 480],  [1019, 664]])
-    dst_points = np.float32([[283, 719], [283, 200], [1019, 200], [1019, 719]])
+    dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
+                             [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
 
-    img = cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR)
-
-    if False:
+    if True:
+        print (np.arctan2(0.5, -0.5))
+        print (np.arctan2(1, 0))
+        print (np.arctan2(0.5, 0.5))
         # Choose a Sobel kernel size
-        ksize = 15 # Choose a larger odd number to smooth gradient measurements
+        ksize = 9 # Choose a larger odd number to smooth gradient measurements
 
         # Apply each of the thresholding functions
-        gradx = abs_sobel_thresh(img, orient='x', sobel_kernel=ksize, thresh=(30, 255))
+        gradx = abs_sobel_thresh(img, orient='x', sobel_kernel=ksize, thresh=(20, 255))
         grady = abs_sobel_thresh(img, orient='y', sobel_kernel=ksize, thresh=(30, 255))
-        mag_binary = mag_thresh(img, sobel_kernel=ksize, mag_thresh=(50, 255))
-        dir_binary = dir_threshold(img, sobel_kernel=ksize, thresh=(0.7, 1.3))
+        mag_binary = mag_thresh(img, sobel_kernel=ksize, mag_thresh=(60, 255))
+        dir_binary = dir_threshold(img, sobel_kernel=ksize, thresh=(np.pi/4*0.9, np.pi/4*1.1))
+        
+        color_seg = color_segmentation(img, s_thresh=[160, 255])
+        
 
+        seg_img = (color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
+
+        # mask image
+        seg_img, vertices = mask_region_of_interest(seg_img, roi)
+
+        seg_img = np.dstack((seg_img, seg_img, seg_img))
+        
+        seg_img_warped = cv2.warpPerspective(seg_img, M, (seg_img.shape[1], seg_img.shape[0]), flags=cv2.INTER_LINEAR)
 
         # Plot the result
         f, ax = plt.subplots(3, 2, figsize=(24, 9))
@@ -66,16 +96,16 @@ def main():
         ax[0, 1].imshow(img)
         ax[0, 1].set_title('Undistorted Image', fontsize=10)
 
-        ax[1, 0].imshow(gradx, cmap='gray')
-        ax[1, 0].set_title('Grad_x', fontsize=10)
+        ax[1, 0].imshow(color_seg, cmap='gray')
+        ax[1, 0].set_title('color_seg', fontsize=10)
 
-        ax[1, 1].imshow(grady, cmap='gray')
-        ax[1, 1].set_title('Grad_y', fontsize=10)
+        ax[1, 1].imshow(mag_binary, cmap='gray')
+        ax[1, 1].set_title('mag_binary', fontsize=10)
 
-        ax[2, 0].imshow(dir_binary, cmap='gray')
+        ax[2, 0].imshow(seg_img, cmap='gray')
         ax[2, 0].set_title('Direction', fontsize=10)
 
-        ax[2, 1].imshow(dir_binary & mag_binary & gradx, cmap='gray')
+        ax[2, 1].imshow(seg_img_warped, cmap='gray')
         ax[2, 1].set_title('Combined', fontsize=10)
 
         plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
@@ -96,7 +126,7 @@ def main():
         ax[0, 1].imshow(img)
         ax[0, 1].set_title('Undistorted Image', fontsize=5)
 
-        ax[1, 0].imshow(gradx, cmap='gray')
+        ax[1, 0].imshow(dir_binary, cmap='gray')
         ax[1, 0].set_title('Grad_x', fontsize=5)
 
         ax[1, 1].plot(histogram)
