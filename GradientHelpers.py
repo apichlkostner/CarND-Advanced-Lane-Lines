@@ -24,7 +24,10 @@ def mag_thresh(img, sobel_kernel=3, mag_thresh=(0, 255)):
     sobel_abs = np.sqrt(sobelx*sobelx + sobely*sobely)
     scaled = np.uint8(255 * sobel_abs / sobel_abs.max())
 
-    mask = (scaled > mag_thresh[0]) & (scaled < mag_thresh[1])
+    mask = ((scaled > mag_thresh[0]) & (scaled < mag_thresh[1])).astype(np.uint8)
+
+    kernel = np.ones((5, 5),np.uint8)
+    mask = cv2.dilate(mask, kernel, iterations = 1)
     
     return mask
     
@@ -37,21 +40,31 @@ def dir_threshold(img, sobel_kernel=3, thresh=(0, np.pi/2)):
     
     direction = np.arctan2(sobely, sobelx)
     
-    mask = (direction > thresh[0]) & (direction < thresh[1])
+    mask = ((direction > thresh[0]) & (direction < thresh[1])).astype(np.uint8)
+
+    kernel = np.ones((5, 5),np.uint8)
+    mask = cv2.dilate(mask, kernel, iterations = 1)
     
     return mask
 
-def color_segmentation(img, s_thresh=[90, 255]):
+def color_segmentation(img, l_thresh=[30, 255], s_thresh=[90, 255]):
     img = np.copy(img)
     # Convert to HLS color space and separate the V channel
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+    h_channel = hls[:,:,0]
     l_channel = hls[:,:,1]
     s_channel = hls[:,:,2]
     
+    l_thresh = [170,255]
+    s_thresh = [0, 60]
     # Threshold color channel
+    white = (s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])
+    white &= (l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])
+    yellow = (h_channel >= 16) & (h_channel <= 23) & (s_channel >= 50)
+    yellow &= (l_channel >= 40) & (l_channel <= 200)
     
-    s_binary = (s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])
-    
+    s_binary = white | yellow
+
     return s_binary
 
 

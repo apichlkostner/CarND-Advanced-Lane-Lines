@@ -30,6 +30,7 @@ def main():
     # Read in an image
     img_orig = mpimg.imread('test_images/straight_lines1.jpg')
     img_orig = mpimg.imread('test_images/test6.jpg')
+    img_orig = (mpimg.imread('test_images/shadow_02.png') * 255).astype(np.uint8)
     #img_orig = mpimg.imread('camera_cal/calibration1.jpg')
 
     img = calCam.undistort(img_orig)
@@ -56,31 +57,31 @@ def main():
                              [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
+    Mi = cv2.getPerspectiveTransform(dst_points, src_points)
 
-    ksize = 9 # Choose a larger odd number to smooth gradient measurements
+    ksize = 15 # Choose a larger odd number to smooth gradient measurements
 
     # Apply each of the thresholding functions
     gradx = abs_sobel_thresh(img, orient='x', sobel_kernel=ksize, thresh=(20, 255))
     grady = abs_sobel_thresh(img, orient='y', sobel_kernel=ksize, thresh=(30, 255))
-    mag_binary = mag_thresh(img, sobel_kernel=ksize, mag_thresh=(60, 255))
+    mag_binary = mag_thresh(img, sobel_kernel=ksize, mag_thresh=(20, 255))
     dir_binary = dir_threshold(img, sobel_kernel=ksize, thresh=(np.pi/4*0.9, np.pi/4*1.5))
     
-    color_seg = color_segmentation(img, s_thresh=[160, 255])
-    
-    seg_img = (color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
+    color_seg = color_segmentation(img, l_thresh=[30, 255], s_thresh=[160, 255])
+
+    seg_img_raw = (color_seg & (dir_binary & mag_binary)) #(color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
 
     # mask image
-    seg_img, vertices = mask_region_of_interest(seg_img, roi)
+    seg_img, vertices = mask_region_of_interest(seg_img_raw.astype(np.uint8) * 255, roi)
 
-    seg_img = np.dstack((seg_img, seg_img, seg_img))
-
-    visualization = np.dstack((np.zeros(dir_binary.shape), (dir_binary & mag_binary), color_seg)).astype(np.uint8) * 255
+    #visualization = np.dstack((seg_img_raw, (dir_binary & mag_binary), color_seg)).astype(np.uint8) * 255
+    visualization = np.dstack((color_seg, color_seg, color_seg)).astype(np.uint8) * 255
     
+    seg_img = np.dstack((seg_img, seg_img, seg_img))
     seg_img_warped = cv2.warpPerspective(seg_img, M, (seg_img.shape[1], seg_img.shape[0]), flags=cv2.INTER_LINEAR)
-    print(seg_img_warped.shape)
+    
     histogram = np.sum(seg_img_warped[gradx.shape[0]//2:,:-2, 0], axis=0)
 
-    out_img = seg_img_warped.copy()
     midpoint = np.int(histogram.shape[0]/2)
     
     print('Midpoint = ' + str(midpoint))
@@ -89,8 +90,9 @@ def main():
     print('Bases = ' + str((leftx_base, rightx_base)))
 
     laneFit = LaneFit()
-    left_fit, right_fit, lane_img = laneFit.fitLanes(seg_img_warped, leftx_base, rightx_base, margin=100)
+    left_fit, right_fit, lane_img, _, _ = laneFit.fitLanes(seg_img_warped, leftx_base, rightx_base, margin=60)
 
+    lane_img_unwarped = cv2.warpPerspective(lane_img, Mi, (lane_img.shape[1], lane_img.shape[0]), flags=cv2.INTER_LINEAR)
 
     # Plot the result    
     gs = grd.GridSpec(3, 2, height_ratios=[10,10,10], width_ratios=[1,1], wspace=0.1)
@@ -123,7 +125,8 @@ def main():
     ax.set_title('Visualization', fontsize=10)
 
     ax = plt.subplot(gs[2,1])
-    ax.plot(histogram)
+    #ax.plot(histogram)
+    ax.imshow(lane_img_unwarped)
     ax.set_title('Histogram', fontsize=10)
 
     plt.show()
