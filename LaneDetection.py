@@ -8,7 +8,7 @@ import time
 import os.path
 import glob
 from CameraCalibration import CalibrateCamera
-from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, mask_region_of_interest
+from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, mask_region_of_interest, img2gray
 from LaneFit import LaneFit
     
 def main():
@@ -30,7 +30,7 @@ def main():
     # Read in an image
     img_orig = mpimg.imread('test_images/straight_lines1.jpg')
     img_orig = mpimg.imread('test_images/test6.jpg')
-    img_orig = (mpimg.imread('test_images/shadow_02.png') * 255).astype(np.uint8)
+    img_orig = (mpimg.imread('test_images/shadow_04.png') * 255).astype(np.uint8)
     #img_orig = mpimg.imread('camera_cal/calibration1.jpg')
 
     img = calCam.undistort(img_orig)
@@ -61,21 +61,31 @@ def main():
 
     ksize = 15 # Choose a larger odd number to smooth gradient measurements
 
+    #hls = cv2.cvtColor(img[roi['top_y']:,:,:], cv2.COLOR_RGB2HLS)
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(32,32))
+    hls[:,:,1] = clahe.apply(hls[:,:,1])
+    #hls[:,:,1] = cv2.equalizeHist(hls[:,:,1])
+    claheimg = cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)
+    
+    gray = img2gray(img)
+
     # Apply each of the thresholding functions
-    gradx = abs_sobel_thresh(img, orient='x', sobel_kernel=ksize, thresh=(20, 255))
-    grady = abs_sobel_thresh(img, orient='y', sobel_kernel=ksize, thresh=(30, 255))
-    mag_binary = mag_thresh(img, sobel_kernel=ksize, mag_thresh=(20, 255))
-    dir_binary = dir_threshold(img, sobel_kernel=ksize, thresh=(np.pi/4*0.9, np.pi/4*1.5))
+    gradx = abs_sobel_thresh(gray, orient='x', sobel_kernel=ksize, thresh=(20, 255))
+    grady = abs_sobel_thresh(gray, orient='y', sobel_kernel=ksize, thresh=(30, 255))
+    mag_binary = mag_thresh(gray, sobel_kernel=ksize, mag_thresh=(30, 255))
+    color_mag = mag_thresh(gray, sobel_kernel=ksize, mag_thresh=(5, 255))
+    dir_binary = dir_threshold(gray, sobel_kernel=ksize, thresh=(1.0, 1.3)) #thresh=(np.pi/4*1.0, np.pi/4*1.2))
     
     color_seg = color_segmentation(img, l_thresh=[30, 255], s_thresh=[160, 255])
 
-    seg_img_raw = (color_seg & (dir_binary & mag_binary)) #(color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
+    seg_img_raw = ((color_seg & color_mag & dir_binary) | (dir_binary & mag_binary)) #(color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
 
     # mask image
     seg_img, vertices = mask_region_of_interest(seg_img_raw.astype(np.uint8) * 255, roi)
-
+    seg_img_roi = seg_img
     #visualization = np.dstack((seg_img_raw, (dir_binary & mag_binary), color_seg)).astype(np.uint8) * 255
-    visualization = np.dstack((color_seg, color_seg, color_seg)).astype(np.uint8) * 255
+    visualization = np.dstack((seg_img_raw, color_seg, (dir_binary & mag_binary))).astype(np.uint8) * 255
     
     seg_img = np.dstack((seg_img, seg_img, seg_img))
     seg_img_warped = cv2.warpPerspective(seg_img, M, (seg_img.shape[1], seg_img.shape[0]), flags=cv2.INTER_LINEAR)
@@ -90,7 +100,7 @@ def main():
     print('Bases = ' + str((leftx_base, rightx_base)))
 
     laneFit = LaneFit()
-    left_fit, right_fit, lane_img, _, _ = laneFit.fitLanes(seg_img_warped, leftx_base, rightx_base, margin=60)
+    left_fit, right_fit, lane_img, _, _, _ = laneFit.fitLanes(seg_img_warped, leftx_base, rightx_base, margin=60)
 
     lane_img_unwarped = cv2.warpPerspective(lane_img, Mi, (lane_img.shape[1], lane_img.shape[0]), flags=cv2.INTER_LINEAR)
 
@@ -105,16 +115,21 @@ def main():
     ax.imshow(img)
     ax.set_title('Undistorted Image', fontsize=10)
 
-    ax = plt.subplot(gs[1,0])
-    ploty = np.linspace(0, lane_img.shape[0]-1, lane_img.shape[0] )
-    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+    if False:
+        ax = plt.subplot(gs[1,0])
+        ploty = np.linspace(0, lane_img.shape[0]-1, lane_img.shape[0] )
+        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
-    ax.imshow(lane_img)
-    ax.plot(left_fitx, ploty, color='yellow')
-    ax.plot(right_fitx, ploty, color='yellow')
-    
-    ax.set_title('Lane fit', fontsize=10)
+        ax.imshow(lane_img)
+        ax.plot(left_fitx, ploty, color='yellow')
+        ax.plot(right_fitx, ploty, color='yellow')
+        
+        ax.set_title('Lane fit', fontsize=10)
+    else:
+        ax = plt.subplot(gs[1,0])
+        #ax.imshow(claheimg)
+        ax.imshow(seg_img_roi, cmap='gray')
 
     ax = plt.subplot(gs[1,1])
     ax.imshow(seg_img_warped, cmap='gray')
