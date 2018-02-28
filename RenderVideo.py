@@ -136,9 +136,11 @@ if False:
     white_clip.write_videofile(white_output, audio=False)
 
 def main():
-    white_output = 'processed_videos/challenge_video.mp4'
+    #white_output = 'processed_videos/challenge_video.mp4'
+    #clip1 = VideoFileClip("source_videos/challenge_video.mp4")#.subclip(0,5)
 
-    clip1 = VideoFileClip("source_videos/challenge_video.mp4")#.subclip(0,5)
+    white_output = 'processed_videos/harder_challenge_video.mp4'
+    clip1 = VideoFileClip("source_videos/harder_challenge_video.mp4")#.subclip(0,5)
 
     original_bottom_left_x = 283
     target_left_x = 300

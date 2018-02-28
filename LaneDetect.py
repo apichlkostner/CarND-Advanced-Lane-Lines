@@ -74,7 +74,7 @@ class LaneDetect():
         t0 = time()
 
         img = self.calCam.undistort(img_orig)   
-
+        img_undist = img
         ksize = 9
 
         gray = img2gray(img)
@@ -85,7 +85,15 @@ class LaneDetect():
         
         color_seg = color_segmentation(img, l_thresh=[30, 255], s_thresh=[160, 255])
         
-        seg_img_raw = (color_seg & dir_binary & mag_binary)
+        kernel_size = 5
+        blur_gray = cv2.GaussianBlur(gray,(kernel_size, kernel_size), 0)
+        #canny = cv2.Canny(blur_gray, 120, 200)
+        canny = cv2.Canny(blur_gray, 40, 80).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+        #mask = cv2.erode(mask, kernel, iterations = 1)
+        canny = cv2.dilate(canny, kernel, iterations = 2)
+        
+        seg_img_raw = (color_seg & canny)
         
         seg_img = seg_img_raw.astype(np.uint8) * 255
 
@@ -93,12 +101,14 @@ class LaneDetect():
         seg_img, vertices = mask_region_of_interest(seg_img, self.roi)
         seg_img = np.dstack((seg_img, seg_img, seg_img))
 
+        
+
         #visualization = np.dstack((np.zeros(dir_binary.shape), (dir_binary & mag_binary), color_seg)).astype(np.uint8) * 255
         
         seg_img_warped = cv2.warpPerspective(seg_img, self.M, (seg_img.shape[1], seg_img.shape[0]), flags=cv2.INTER_LINEAR)
         
         if self.update:
-            left_fit, right_fit, lane_img, lc, rc = self.laneFit.fitLanes(seg_img_warped, margin=60, numwin=20)
+            left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.procVideoImg(seg_img_warped, margin=60, numwin=20)
         else:
             histogram = np.sum(seg_img_warped[seg_img_warped.shape[0]//2:,:-2, 0], axis=0)
 
@@ -107,14 +117,14 @@ class LaneDetect():
             leftx_base = np.argmax(histogram[:midpoint])
             rightx_base = np.argmax(histogram[midpoint:]) + midpoint
 
-            left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.fitLanes(seg_img_warped, leftx_base, rightx_base, margin=60, numwin=20)
+            left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.procVideoImg(seg_img_warped, leftx_base, rightx_base, margin=60, numwin=20)
 
-            # self.update = False
+            self.update = True
 
         lane_img_unwarped = cv2.warpPerspective(lane_img, self.MInverse, (lane_img.shape[1], lane_img.shape[0]), flags=cv2.INTER_LINEAR)
         
         if True:
-            img = cv2.addWeighted(img, 1, lane_img_unwarped, 0.3, 0)
+            img = cv2.addWeighted(img, 1, lane_img_unwarped, 0.7, 0)
         else:
             mask = (lane_img_unwarped[:,:,0] != 0) | (lane_img_unwarped[:,:,1] != 0) | (lane_img_unwarped[:,:,2] != 0)
             img[mask] = 0 #lane_img_unwarped[mask]
@@ -127,7 +137,9 @@ class LaneDetect():
         
         logging.info('process_image: runtime = ' + str(t1))
 
-        #img = np.dstack((np.zeros_like(seg_img_raw), (dir_binary & mag_binary), color_seg)).astype(np.uint8) * 255 #+ 0.4 * lane_img_unwarped
+        #img = np.dstack((np.zeros_like(seg_img_raw), canny, color_seg)).astype(np.uint8) * 255 #+ 0.4 * lane_img_unwarped
+        #img = cv2.addWeighted(img, 1, img_undist, 0.2, 0)
+        #img = cv2.addWeighted(img, 1, lane_img_unwarped, 0.9, 0)
 
         return img
 

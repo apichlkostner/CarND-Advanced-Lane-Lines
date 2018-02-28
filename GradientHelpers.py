@@ -43,8 +43,6 @@ def dir_threshold(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
     
     mask = ((direction > thresh[0]) & (direction < thresh[1])).astype(np.uint8)
 
-    print('Direction = ' + str(direction))
-
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
     mask = cv2.erode(mask, kernel, iterations = 1)
     mask = cv2.dilate(mask, kernel, iterations = 2)
@@ -59,15 +57,15 @@ def color_segmentation(img, l_thresh=[30, 255], s_thresh=[90, 255]):
     l_channel = hls[:,:,1]
     s_channel = hls[:,:,2]
     
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16,16))
-    l_channel = clahe.apply(l_channel)
+    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16,16))
+    #l_channel = clahe.apply(l_channel)
     l_thresh = [170,255]
     s_thresh = [0, 60]
     # Threshold color channel
     white = (s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])
     white &= (l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])
-    yellow = (h_channel >= 16) & (h_channel <= 23) & (s_channel >= 120)
-    yellow &= (l_channel >= 40) & (l_channel <= 200)
+    yellow = (h_channel >= 16) & (h_channel <= 23) & (s_channel >= 60)
+    yellow &= (l_channel >= 20) & (l_channel <= 200)
     
     s_binary = white | yellow
 

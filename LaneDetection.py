@@ -30,7 +30,8 @@ def main():
     # Read in an image
     img_orig = mpimg.imread('test_images/straight_lines1.jpg')
     img_orig = mpimg.imread('test_images/test6.jpg')
-    img_orig = (mpimg.imread('test_images/shadow_04.png') * 255).astype(np.uint8)
+    img_orig = (mpimg.imread('test_images/shadow_05.png') * 255).astype(np.uint8)
+    img_orig = (mpimg.imread('test_images/challenge_02.png') * 255).astype(np.uint8)
     #img_orig = mpimg.imread('camera_cal/calibration1.jpg')
 
     img = calCam.undistort(img_orig)
@@ -77,6 +78,22 @@ def main():
     color_mag = mag_thresh(gray, sobel_kernel=ksize, mag_thresh=(5, 255))
     dir_binary = dir_threshold(gray, sobel_kernel=ksize, thresh=(1.0, 1.3)) #thresh=(np.pi/4*1.0, np.pi/4*1.2))
     
+    kernel_size = 5
+    blur_gray = cv2.GaussianBlur(gray,(kernel_size, kernel_size), 0)
+    #canny = cv2.Canny(blur_gray, 120, 200)
+    canny = cv2.Canny(blur_gray, 40, 80)    
+    canny_warped = cv2.warpPerspective(canny, M, (canny.shape[1], canny.shape[0]), flags=cv2.INTER_LINEAR)
+    canny_warped = (canny_warped > 120).astype(np.uint8) * 255
+
+    #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+    #canny_warped = cv2.dilate(canny_warped, kernel, iterations=1)
+    #canny_warped = cv2.erode(canny_warped, kernel, iterations=1)
+    
+    plt.imshow(canny_warped, cmap='gray')
+    plt.show()
+
+    return
+
     color_seg = color_segmentation(img, l_thresh=[30, 255], s_thresh=[160, 255])
 
     seg_img_raw = ((color_seg & color_mag & dir_binary) | (dir_binary & mag_binary)) #(color_seg | (dir_binary & mag_binary)).astype(np.uint8) * 255
@@ -129,10 +146,10 @@ def main():
     else:
         ax = plt.subplot(gs[1,0])
         #ax.imshow(claheimg)
-        ax.imshow(seg_img_roi, cmap='gray')
+        ax.imshow(canny, cmap='gray')
 
     ax = plt.subplot(gs[1,1])
-    ax.imshow(seg_img_warped, cmap='gray')
+    ax.imshow(blur_gray, cmap='gray')
     ax.set_title('Combined', fontsize=10)
 
     ax = plt.subplot(gs[2,0])
