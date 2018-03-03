@@ -11,6 +11,10 @@ class LaneFit():
         self.fit = False
         self.middle = 0.0
         self.cnt = 0
+        self.s1 = None
+        self.POLYFIT = True
+        self.PLOTFITPOINTS = False
+        self.POLYUPDATE = False
 
     def procVideoImg(self, img, leftx_base=None, rightx_base=None, numwin=9, margin=100, minpix=50):
         if self.firstCall:
@@ -23,39 +27,40 @@ class LaneFit():
 
         return self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle
 
+    
     def update(self, img):
         
         # Identify the x and y positions of all nonzero pixels in the image
-        nonzero = img.nonzero()
+        nonzero = img[:,:,0].nonzero()
         nonzero_y = np.array(nonzero[0])
         nonzero_x = np.array(nonzero[1])
 
-        margin = 150
+        margin = 100
         if not self.firstCall:
-            left_lane  = self.left_fit[0]*(nonzero_y**2) + self.left_fit[1]*nonzero_y + self.left_fit[2]
-            right_lane = self.right_fit[0] * (nonzero_y**2) + self.right_fit[1] * nonzero_y + self.right_fit[2]
+            if self.POLYFIT:
+                if self.POLYUPDATE:
+                    # shift of curve while car is driving one frame
+                    delta_drive_px = 20
+                    self.left_fit[1] += 2. * delta_drive_px * self.left_fit[0]
+                    self.left_fit[2] += self.left_fit[0] * delta_drive_px**2 + delta_drive_px + self.left_fit[1]
+
+                    self.right_fit[1] += 2. * delta_drive_px * self.right_fit[0]
+                    self.right_fit[2] += self.right_fit[0] * delta_drive_px**2 + delta_drive_px + self.right_fit[1]
+                
+                # curve
+                delta_drive_px = 0
+                left_lane  = self.left_fit[0]*((nonzero_y+delta_drive_px)**2) + self.left_fit[1]*(nonzero_y+delta_drive_px) + self.left_fit[2]
+                right_lane = self.right_fit[0] * ((nonzero_y+delta_drive_px)**2) + self.right_fit[1] * (nonzero_y+delta_drive_px) + self.right_fit[2]
+
+            else:
+                delta_drive_px = 20
+
+                left_lane = self.s_left(nonzero_y+delta_drive_px)
+                right_lane = self.s_right(nonzero_y+delta_drive_px)
 
             left_lane_inds =  ((nonzero_x > left_lane - margin)) & (nonzero_x < left_lane + margin)
             right_lane_inds = ((nonzero_x > right_lane - margin)) & (nonzero_x < right_lane + margin)
-            mx = 50
-            if True:
-                if left_lane_inds.sum() > 50:
-                    window_mean = np.int(np.mean(nonzero_x[left_lane_inds]))
-                    # remove outliers
-                    mask = np.abs(nonzero_x - window_mean)
-                    left_lane_inds[mask > mx] = False
-
-                if right_lane_inds.sum() > 50:
-                    import math
-                    if math.isnan(np.mean(nonzero_x[right_lane_inds])):
-                        print(right_lane_inds)
-                        print(nonzero_x[right_lane_inds])
-                        print(np.mean(nonzero_x[right_lane_inds]))
-                    window_mean = np.int(np.mean(nonzero_x[right_lane_inds]))
-                    # remove outliers
-                    mask = np.abs(nonzero_x - window_mean)
-                    right_lane_inds[mask > mx] = False
-
+            
             # extract left and right line pixel positions
             leftx = nonzero_x[left_lane_inds]
             lefty = nonzero_y[left_lane_inds] 
@@ -66,8 +71,9 @@ class LaneFit():
 
             window_img = np.zeros_like(img)
 
-            #window_img[lefty, leftx] = [255, 255, 255]
-            #window_img[righty, rightx] = [255, 255, 255]
+            if self.PLOTFITPOINTS:
+                window_img[lefty, leftx] = [0, 0, 255]
+                window_img[righty, rightx] = [0, 0, 255]
 
             if self.fit:
                 # plot lane borders and area
@@ -84,14 +90,17 @@ class LaneFit():
                 right_curverad = 1
 
             return self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle
-        
-    def fitCurves(self, leftx, lefty, rightx, righty, kr=9.):
+    
+    
+    def fitCurves(self, leftx, lefty, rightx, righty, kr=6):
         # Fit a second order polynomial to each
         # Define conversions in x and y from pixels space to meters
         ym_per_pix = 30/720 # meters per pixel in y dimension
         xm_per_pix = 3.7/700 # meters per pixel in x dimension
-        print(str(len(lefty))+'   '+str(len(righty)))
-        if len(lefty) > 10000 and len(righty) > 10000:
+        
+        #print(str(len(lefty))+'   '+str(len(righty)))
+        
+        if len(lefty) > 1000 and len(righty) > 1000:
             if self.cnt > 0:
                 self.cnt = self.cnt - 1
             else:       
@@ -107,14 +116,16 @@ class LaneFit():
                     poly_r = np.polyfit(righty, rightx, 2)
                     self.left_fit = (kr * self.left_fit + poly_l) / (kr + 1.)
                     self.right_fit = (kr * self.right_fit + poly_r) / (kr + 1.)
+                    
                     poly_l = np.polyfit(lefty*ym_per_pix, leftx*xm_per_pix, 2)
                     poly_r = np.polyfit(righty*ym_per_pix, rightx*xm_per_pix, 2)
                     self.left_fit_phys = (kr * self.left_fit_phys + poly_l) / (kr + 1.)
                     self.right_fit_phys = (kr * self.right_fit_phys + poly_r) / (kr + 1.)
                 
                 # middle point
-                left_fitx = self.left_fit[2]
-                right_fitx = self.right_fit[2]            
+                bottom = 720
+                left_fitx  = self.left_fit[0]*(bottom**2) + self.left_fit[1]*bottom + self.left_fit[2]
+                right_fitx = self.right_fit[0] * (bottom**2) + self.right_fit[1] * bottom + self.right_fit[2]
                 self.middle = ((self.shape[1] / 2) - ((left_fitx + right_fitx) / 2)) * xm_per_pix
         else:
             self.cnt = self.cnt + 1
@@ -125,8 +136,12 @@ class LaneFit():
         ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
         
         # curve
-        left_fitx = self.left_fit[0]*ploty**2 + self.left_fit[1]*ploty + self.left_fit[2]
-        right_fitx = self.right_fit[0]*ploty**2 + self.right_fit[1]*ploty + self.right_fit[2]
+        if self.POLYFIT:
+            left_fitx = self.left_fit[0]*ploty**2 + self.left_fit[1]*ploty + self.left_fit[2]
+            right_fitx = self.right_fit[0]*ploty**2 + self.right_fit[1]*ploty + self.right_fit[2]
+        else:
+            left_fitx = self.s_left(ploty)
+            right_fitx = self.s_right(ploty)        
 
         left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-margin, ploty]))])
         left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+margin, 
@@ -209,14 +224,17 @@ class LaneFit():
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
         right_lane_inds = np.concatenate(right_lane_inds)
+
         # Extract left and right line pixel positions
         leftx = nonzero_x[left_lane_inds]
         lefty = nonzero_y[left_lane_inds] 
         rightx = nonzero_x[right_lane_inds]
         righty = nonzero_y[right_lane_inds] 
 
+        # fit the curve
         self.fitCurves(leftx, lefty, rightx, righty)
 
+        # output image
         window_img = np.zeros_like(out_img)
         if self.fit:
             # plot lane borders and area

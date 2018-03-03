@@ -49,23 +49,29 @@ def dir_threshold(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
     
     return mask
 
-def color_segmentation(img, l_thresh=[30, 255], s_thresh=[90, 255]):
+def color_segmentation(img, white_seg={'l_thres': [170,255], 's_thres': [0, 60], 'xmin': 680},
+                            yellow_seg={'l_thres': [20,200], 'h_thres': [16,23], 's_thres': [60, 255], 'xmax': 640},  clahe=False):
     img = np.copy(img)
+
     # Convert to HLS color space and separate the V channel
-    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS) #.astype(np.float)
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
     h_channel = hls[:,:,0]
     l_channel = hls[:,:,1]
     s_channel = hls[:,:,2]
     
-    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16,16))
-    #l_channel = clahe.apply(l_channel)
-    l_thresh = [170,255]
-    s_thresh = [0, 60]
+    if clahe:
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16,16))
+        l_channel = clahe.apply(l_channel)
+        
     # Threshold color channel
-    white = (s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])
-    white &= (l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])
-    yellow = (h_channel >= 16) & (h_channel <= 23) & (s_channel >= 60)
-    yellow &= (l_channel >= 20) & (l_channel <= 200)
+    white = (s_channel >= white_seg['s_thres'][0]) & (s_channel <= white_seg['s_thres'][1])
+    white &= (l_channel >= white_seg['l_thres'][0]) & (l_channel <= white_seg['l_thres'][1])
+    white[:, 0:white_seg['xmin']] = False
+
+    yellow = (h_channel >= yellow_seg['h_thres'][0]) & (h_channel <= yellow_seg['h_thres'][1]) \
+                 & (s_channel >= yellow_seg['s_thres'][0])
+    yellow &= (l_channel >= yellow_seg['l_thres'][0]) & (l_channel <= yellow_seg['l_thres'][1])
+    yellow[:, yellow_seg['xmax']:] = False
     
     s_binary = white | yellow
 
