@@ -8,7 +8,7 @@ import time
 import os.path
 import glob
 from CameraCalibration import CalibrateCamera
-from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, mask_region_of_interest, img2gray
+from ImageSegmentation import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, mask_region_of_interest, img2gray
 from LaneFit import LaneFit
     
 def main():
@@ -28,10 +28,10 @@ def main():
     print(calCam.mtx)
     print(calCam.dist)
     # Read in an image
-    img_orig = mpimg.imread('test_images/straight_lines1.jpg')
-    img_orig = mpimg.imread('test_images/test6.jpg')
-    img_orig = (mpimg.imread('test_images/shadow_05.png') * 255).astype(np.uint8)
-    img_orig = (mpimg.imread('test_images/challenge_02.png') * 255).astype(np.uint8)
+    img_orig = mpimg.imread('test_images/straight_lines2.jpg')
+    #img_orig = mpimg.imread('test_images/test6.jpg')
+    #img_orig = (mpimg.imread('test_images/shadow_05.png') * 255).astype(np.uint8)
+    #img_orig = (mpimg.imread('test_images/challenge_02.png') * 255).astype(np.uint8)
     #img_orig = mpimg.imread('camera_cal/calibration1.jpg')
 
     img = calCam.undistort(img_orig)
@@ -52,14 +52,14 @@ def main():
     target_left_x = 300
     target_right_x = 1002
     target_top_y = 0
-    target_bottom_y =690
-    src_points = np.float32([[283, 664], [548, 480], [736, 480],  [1019, 664]])
+    target_bottom_y =685
+    src_points = np.float32([[283, 664], [552, 480], [736, 480],  [1015, 664]])
     dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
                              [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Mi = cv2.getPerspectiveTransform(dst_points, src_points)
-
+    
     ksize = 15 # Choose a larger odd number to smooth gradient measurements
 
     #hls = cv2.cvtColor(img[roi['top_y']:,:,:], cv2.COLOR_RGB2HLS)
@@ -82,6 +82,7 @@ def main():
     blur_gray = cv2.GaussianBlur(gray,(kernel_size, kernel_size), 0)
     #canny = cv2.Canny(blur_gray, 120, 200)
     canny = cv2.Canny(blur_gray, 40, 80)    
+    canny[670:,:] = 0
     canny_warped = cv2.warpPerspective(canny, M, (canny.shape[1], canny.shape[0]), flags=cv2.INTER_LINEAR)
     canny_warped = (canny_warped > 120).astype(np.uint8) * 255
 

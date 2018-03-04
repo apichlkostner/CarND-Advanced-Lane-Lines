@@ -40,6 +40,10 @@ class CalibrateCamera():
                 print("Found corners in " + fname)      
                 self.objpoints.append(objp)
                 self.imgpoints.append(corners)
+                #debug_img = cv2.drawChessboardCorners(img, corner_size, corners, ret)
+                #cv2.imwrite('debug_images/' + fname, debug_img)
+
+
 
     def calibrateCamera(self):
         # Do camera calibration given object points and image points
@@ -75,40 +79,25 @@ class CalibrateCamera():
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
-    if True:
-        calCam = CalibrateCamera.load()
+    # load precalulated calibration data if available
+    calCam = CalibrateCamera.load()
 
-        if calCam == None:
-            images = glob.glob('camera_cal/calibration*.jpg')
+    # if no precalculated data is available start calculation
+    if calCam == None:
+        images = glob.glob('camera_cal/calibration*.jpg')
 
-            calCam = CalibrateCamera()
+        calCam = CalibrateCamera()
 
-            calCam.findCorners(images, (9, 6))
+        calCam.findCorners(images, (9, 6))
 
-            calCam.calibrateCamera()
+        calCam.calibrateCamera()
 
-            calCam.write()
-    else:
-        cameraCalibrationFilename = 'CameraCalibration.p'
-        
-        if os.path.isfile(cameraCalibrationFilename):
-            with open(cameraCalibrationFilename, 'rb') as pf:
-                calCam = pickle.load(pf)
-        else:
-            calCam = None
+        calCam.write()
 
-        if calCam == None:
-            images = glob.glob('camera_cal/calibration*.jpg')
-
-            calCam = CalibrateCamera()
-
-            calCam.findCorners(images, (9, 6))
-
-            mtx, dist = calCam.calibrateCamera()
-
-            with open(cameraCalibrationFilename, 'wb') as pf:
-                pickle.dump(calCam, pf)
-
+    # for debuggind and documentation    
+    debug_img = cv2.imread('camera_cal/calibration2.jpg')
+    debug_img_undist = calCam.undistort(debug_img)
+    cv2.imwrite('debug_images/camera_cal/calibration2_undist.jpg', debug_img_undist)
     
     print(calCam.mtx)
     print(calCam.dist)

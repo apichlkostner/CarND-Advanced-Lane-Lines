@@ -1,14 +1,11 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import matplotlib.gridspec as grd
-import pickle
 import time
 import os.path
 import glob
 from CameraCalibration import CalibrateCamera
-from GradientHelpers import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, \
+from ImageSegmentation import abs_sobel_thresh, mag_thresh, dir_threshold, color_segmentation, \
                             mask_region_of_interest, img2gray
 from LaneFit import LaneFit
 from moviepy.editor import VideoFileClip
@@ -22,8 +19,8 @@ class ProcessImage():
         self.calCam = None
         self.laneFit = None
         self.image_cnt = 0
-        self.DEBUG_IMAGE = False
-        self.DEBUG_IMAGE_FOLDER = 'project_video'
+        self.DEBUG_IMAGE = True
+        self.DEBUG_IMAGE_FOLDER = 'challenge_debug'
         self.DEBUG_VIDEO = False
         self.segmentation = 1
 
@@ -83,7 +80,8 @@ class ProcessImage():
         img = self.calCam.undistort(img_orig)
 
         if self.DEBUG_IMAGE:
-            img_savename = 'image{0:04d}.jpg'.format(self.image_cnt)            
+            img_savename = 'image{0:04d}.jpg'.format(self.image_cnt)
+            cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/original/'+img_savename, cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB))
             cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/undist/'+img_savename, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
         img_undist = img
@@ -109,10 +107,15 @@ class ProcessImage():
             canny = cv2.dilate(canny, kernel, iterations = 3)
             
             seg_img_raw = (color_seg & canny)
+
+            if self.DEBUG_IMAGE:
+                cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/seg_color/'+img_savename, color_seg.astype(np.uint8) * 255)
+                cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/seg_canny/'+img_savename, canny.astype(np.uint8) * 255)
+                cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/seg_comb/'+img_savename, seg_img_raw.astype(np.uint8) * 255)
         
         seg_img = seg_img_raw.astype(np.uint8) * 255
 
-        seg_img[670:,:] = 0
+        seg_img[690:,:] = 0
 
         # mask image
         #seg_img, vertices = mask_region_of_interest(seg_img, self.roi)
@@ -128,6 +131,8 @@ class ProcessImage():
 
         if self.DEBUG_IMAGE:
             cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/seg_warped/'+img_savename, seg_img_warped)
+            #undist_img_warped = cv2.warpPerspective(img_undist, self.M, (img_undist.shape[1], img_undist.shape[0]), flags=cv2.INTER_LINEAR)
+            #cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/undist_warped/'+img_savename, undist_img_warped)
         
         if self.update:
             left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.procVideoImg(seg_img_warped, margin=60, numwin=20)

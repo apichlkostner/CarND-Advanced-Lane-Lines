@@ -1,21 +1,13 @@
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import matplotlib.gridspec as grd
-import pickle
-import time
-import os.path
-import glob
 from CameraCalibration import CalibrateCamera
 from LaneFit import LaneFit
-from moviepy.editor import VideoFileClip
-from time import time
 from ProcessImage import ProcessImage
+from moviepy.editor import VideoFileClip
 
 def main():
-    white_output = 'processed_videos/project_video.mp4'
-    clip1 = VideoFileClip("source_videos/project_video.mp4")#.subclip(0,5)
+    white_output = 'processed_videos/challenge_video.mp4'
+    clip1 = VideoFileClip("source_videos/challenge_video.mp4")#.subclip(0,5)
 
     #white_output = 'processed_videos/harder_challenge_video.mp4'
     #clip1 = VideoFileClip("source_videos/harder_challenge_video.mp4")#.subclip(0,5)
