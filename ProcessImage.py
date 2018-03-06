@@ -69,8 +69,8 @@ class ProcessImage():
         img = cv2.addWeighted(img, 1.0, box_img, 1.0, 0.)
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        pos_str = 'Left curv:  {:06.0f}'.format(lc)
-        pos_str2 = 'Right curv: {:06.0f}'.format(rc)
+        pos_str = 'Left curve:  {:06.0f}'.format(lc)
+        pos_str2 = 'Right curve: {:06.0f}'.format(rc)
         pos_str3 = 'Middle: {:.2f}'.format(mid)
         frame_str = 'Frame: {}'.format(self.frame)
 
@@ -179,21 +179,36 @@ class ProcessImage():
         if self.DEBUG_IMAGE:
             cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/result/'+img_savename, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
-        output_size = (1080, 1920, 3)
-        ret_img = np.zeros(output_size).astype(np.uint8)
-
-        ret_img[:img.shape[0], :img.shape[1], :] = img
-
+        
         color_small = cv2.resize(color_seg.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
         canny_small = cv2.resize(canny.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
         combined_small = cv2.resize((color_seg & canny).astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
+        stacked_small = np.dstack((combined_small, canny_small, color_small)).astype(np.uint8)
+        
         undist_img_warped = cv2.warpPerspective(img_undist, self.M, (img_undist.shape[1], img_undist.shape[0]), flags=cv2.INTER_LINEAR)
 
-        ret_img[:360, img.shape[1]:, :] = color_small
-        ret_img[360:720, img.shape[1]:, :] = canny_small
-        ret_img[720:1080, img.shape[1]:, :] = combined_small
-        ret_img[720:1080, :640, :] = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
-        ret_img[720:1080, 640:1280, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
+        if True:
+            y_offset = 0
+            output_size = (1080-360, 1920, 3)
+            ret_img = np.zeros(output_size).astype(np.uint8)
+            warped_small = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
+            warped_semented = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
+            warped_combined = cv2.addWeighted(warped_small, 1, warped_semented, 0.7, 0)
+
+            ret_img[y_offset:img.shape[0]+y_offset, :img.shape[1], :] = img
+            ret_img[y_offset:360+y_offset, img.shape[1]:, :] = stacked_small
+            ret_img[360+y_offset:720+y_offset, img.shape[1]:, :] = warped_combined
+            #ret_img[720:1080, img.shape[1]:, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
+            
+        else:
+            output_size = (1080, 1920, 3)
+            ret_img = np.zeros(output_size).astype(np.uint8)
+            ret_img[:img.shape[0], :img.shape[1], :] = img
+            ret_img[:360, img.shape[1]:, :] = color_small
+            ret_img[360:720, img.shape[1]:, :] = canny_small
+            ret_img[720:1080, img.shape[1]:, :] = combined_small
+            ret_img[720:1080, :640, :] = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
+            ret_img[720:1080, 640:1280, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
         
         # write information to image
         ret_img = self.writeInfo(ret_img, lc, rc, mid)
