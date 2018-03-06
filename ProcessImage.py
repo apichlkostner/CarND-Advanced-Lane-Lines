@@ -49,7 +49,7 @@ class ProcessImage():
 
         self.M = M
         self.MInverse = MInverse
-
+        self.frame = 0
         self.update = False
 
     def imageClahe(self, img):
@@ -63,13 +63,24 @@ class ProcessImage():
         return cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)
 
     def writeInfo(self, img, lc=0.0, rc=0.0, mid=0.0):
+        box_img = np.zeros_like(img).astype(np.uint8)
+        box_img = cv2.rectangle(box_img, (10, 10), (1270, 150), (0, 0, 100), thickness=cv2.FILLED)        
+
+        img = cv2.addWeighted(img, 1.0, box_img, 1.0, 0.)
+
         font = cv2.FONT_HERSHEY_SIMPLEX
         pos_str = 'Left curv:  {:06.0f}'.format(lc)
         pos_str2 = 'Right curv: {:06.0f}'.format(rc)
         pos_str3 = 'Middle: {:.2f}'.format(mid)
-        cv2.putText(img, pos_str ,(10,30), font, 0.5,(255,255,255), 1, cv2.LINE_AA)
-        cv2.putText(img, pos_str2 ,(10,50), font, 0.5,(255,255,255), 1, cv2.LINE_AA)
-        cv2.putText(img, pos_str3 ,(10,70), font, 0.5,(255,255,255), 1, cv2.LINE_AA)
+        frame_str = 'Frame: {}'.format(self.frame)
+
+        left_pos = 40
+        top_pos = 40
+        delta_height = 30
+        cv2.putText(img, pos_str ,(left_pos, top_pos), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
+        cv2.putText(img, pos_str2 ,(left_pos, top_pos+delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
+        cv2.putText(img, pos_str3 ,(left_pos, top_pos+2*delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
+        cv2.putText(img, frame_str ,(left_pos, top_pos+3*delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
 
         return img
 
@@ -104,7 +115,7 @@ class ProcessImage():
             blur_gray = cv2.GaussianBlur(gray,(kernel_size, kernel_size), 0)
             canny = cv2.Canny(blur_gray, 40, 80).astype(np.uint8) * 255
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
-            canny = cv2.dilate(canny, kernel, iterations = 3)
+            canny = cv2.dilate(canny, kernel, iterations = 2)
             
             seg_img_raw = (color_seg & canny)
 
@@ -156,9 +167,6 @@ class ProcessImage():
         
         # combine original image with detection
         img = cv2.addWeighted(img, 1, lane_img_unwarped, 0.7, 0)
-
-        # write information to image
-        img = self.writeInfo(img, lc, rc, mid)
         
         # time measurement
         t1 = time()        
@@ -171,7 +179,28 @@ class ProcessImage():
         if self.DEBUG_IMAGE:
             cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/result/'+img_savename, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
-        return img
+        output_size = (1080, 1920, 3)
+        ret_img = np.zeros(output_size).astype(np.uint8)
+
+        ret_img[:img.shape[0], :img.shape[1], :] = img
+
+        color_small = cv2.resize(color_seg.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
+        canny_small = cv2.resize(canny.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
+        combined_small = cv2.resize((color_seg & canny).astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
+        undist_img_warped = cv2.warpPerspective(img_undist, self.M, (img_undist.shape[1], img_undist.shape[0]), flags=cv2.INTER_LINEAR)
+
+        ret_img[:360, img.shape[1]:, :] = color_small
+        ret_img[360:720, img.shape[1]:, :] = canny_small
+        ret_img[720:1080, img.shape[1]:, :] = combined_small
+        ret_img[720:1080, :640, :] = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
+        ret_img[720:1080, 640:1280, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
+        
+        # write information to image
+        ret_img = self.writeInfo(ret_img, lc, rc, mid)
+
+        self.frame += 1
+
+        return ret_img
 
 def main():
     white_output = 'processed_videos/challenge_video.mp4'
