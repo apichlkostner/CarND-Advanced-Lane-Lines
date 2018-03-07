@@ -25,6 +25,9 @@ class ProcessImage():
         self.segmentation = 1
 
     def fit(self, shape, M, MInverse, roi=None, calCam=None):
+        """
+        First call before processing images
+        """
         self.shape = shape
 
         # region of interest
@@ -52,42 +55,42 @@ class ProcessImage():
         self.frame = 0
         self.update = False
 
-    def imageClahe(self, img):
-        hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS) 
-        l_channel = hls[:,:,1]
-        
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(16,16))
-        l_channel = clahe.apply(l_channel)
-        hls[:,:,1] = l_channel
-
-        return cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)
-
-    def writeInfo(self, img, lc=0.0, rc=0.0, mid=0.0):
+    def writeInfo(self, img, laneparams):
+        """
+        Writes information to the image
+        """
+        # empty image
         box_img = np.zeros_like(img).astype(np.uint8)
-        box_img = cv2.rectangle(box_img, (10, 10), (1270, 150), (0, 0, 100), thickness=cv2.FILLED)        
 
+        # draw rectangle and arrow for position deviation
+        box_img = cv2.rectangle(box_img, (10, 10), (int(1280/2-10), 150), (0, 0, 100), thickness=cv2.FILLED)
+        box_img = cv2.rectangle(box_img, (int(1280/2-10), 10), (1280-10, 150), (0, 0, 100), thickness=cv2.FILLED)
+        box_img = cv2.arrowedLine(box_img, (500, 60), (int(500 + laneparams['middle_phys'] * 200), 60), (255,0,0), 5)
+        
         img = cv2.addWeighted(img, 1.0, box_img, 1.0, 0.)
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        pos_str = 'Left curve:  {:06.0f}'.format(lc)
-        pos_str2 = 'Right curve: {:06.0f}'.format(rc)
-        pos_str3 = 'Middle: {:.2f}'.format(mid)
+        pos_str = 'Left curve:  {:06.0f}'.format(laneparams['left_curverad'])
+        pos_str2 = 'Right curve: {:06.0f}'.format(laneparams['right_curverad'])
+        pos_str3 = 'Middle: {:.2f}m'.format(laneparams['middle_phys'])
         frame_str = 'Frame: {}'.format(self.frame)
 
         left_pos = 40
         top_pos = 40
         delta_height = 30
+        # write text to image
         cv2.putText(img, pos_str ,(left_pos, top_pos), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
         cv2.putText(img, pos_str2 ,(left_pos, top_pos+delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
-        cv2.putText(img, pos_str3 ,(left_pos, top_pos+2*delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
+        cv2.putText(img, pos_str3 ,(400, top_pos), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
         cv2.putText(img, frame_str ,(left_pos, top_pos+3*delta_height), font, 0.8, (255,255,255), 1, cv2.LINE_AA)
 
         return img
 
     def process_image(self, img_orig):
+        """
+        Processes an image
+        """
         t0 = time()
-        self.image_cnt += 1
-
         img = self.calCam.undistort(img_orig)
 
         if self.DEBUG_IMAGE:
@@ -98,10 +101,12 @@ class ProcessImage():
         img_undist = img
         ksize = 9
 
+        # gray conversion
         gray = img2gray(img)
 
         # Apply each of the thresholding functions
         if self.segmentation == 0:
+            # magnitude and direction of edges, color
             mag_binary = mag_thresh(gray, sobel_kernel=ksize, mag_thresh=(20, 255))
             dir_binary = dir_threshold(gray, sobel_kernel=ksize, thresh=(np.pi/4*0.9, np.pi/4*1.5))
             color_seg = color_segmentation(img)
@@ -109,14 +114,17 @@ class ProcessImage():
             seg_img_raw = color_seg & mag_binary & dir_binary
         
         else:
+            # color segmentation and canny edge detection
             color_seg = color_segmentation(img)
             
             kernel_size = 5
             blur_gray = cv2.GaussianBlur(gray,(kernel_size, kernel_size), 0)
             canny = cv2.Canny(blur_gray, 40, 80).astype(np.uint8) * 255
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+            # dilate canny edges which are very sharp
             canny = cv2.dilate(canny, kernel, iterations = 2)
             
+            # segmented image with color and canny
             seg_img_raw = (color_seg & canny)
 
             if self.DEBUG_IMAGE:
@@ -129,6 +137,7 @@ class ProcessImage():
         seg_img[690:,:] = 0
 
         # mask image
+        # region of interest not used
         #seg_img, vertices = mask_region_of_interest(seg_img, self.roi)
         seg_img = np.dstack((seg_img, seg_img, seg_img))
 
@@ -145,19 +154,10 @@ class ProcessImage():
             #undist_img_warped = cv2.warpPerspective(img_undist, self.M, (img_undist.shape[1], img_undist.shape[0]), flags=cv2.INTER_LINEAR)
             #cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/undist_warped/'+img_savename, undist_img_warped)
         
-        if self.update:
-            left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.procVideoImg(seg_img_warped, margin=60, numwin=20)
-        else:
-            histogram = np.sum(seg_img_warped[seg_img_warped.shape[0]//2:,:-2, 0], axis=0)
+        # do LaneFit algorithm on image
+        laneparams = self.laneFit.procVideoImg(seg_img_warped, margin=60, numwin=20)
 
-            midpoint = np.int(histogram.shape[0]/2)
-            
-            leftx_base = np.argmax(histogram[:midpoint])
-            rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-
-            left_fit, right_fit, lane_img, lc, rc, mid = self.laneFit.procVideoImg(seg_img_warped, leftx_base, rightx_base, margin=60, numwin=20)
-
-            self.update = True
+        lane_img = laneparams['img']
 
         if self.DEBUG_IMAGE:
             comb = cv2.addWeighted(seg_img_warped, 0.5, lane_img, 0.8, 0)
@@ -170,48 +170,42 @@ class ProcessImage():
         
         # time measurement
         t1 = time()        
-        logging.info('process_image: runtime = ' + str(t1))
+        logging.info('process_image: runtime = ' + str(t1-t0))
 
+        # debug video with different segmentations used in this algorithm
         if self.DEBUG_VIDEO:
             img = np.dstack((np.zeros_like(seg_img_raw), canny, color_seg)).astype(np.uint8) * 255
             img = cv2.addWeighted(img, 1, lane_img_unwarped, 0.9, 0)
 
         if self.DEBUG_IMAGE:
             cv2.imwrite(self.DEBUG_IMAGE_FOLDER + '/result/'+img_savename, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            self.image_cnt += 1     # for number of debug image
 
-        
-        color_small = cv2.resize(color_seg.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
-        canny_small = cv2.resize(canny.astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
-        combined_small = cv2.resize((color_seg & canny).astype(np.uint8), (0, 0), fx=0.5, fy=0.5).reshape((360, 640, 1)) * 255
-        stacked_small = np.dstack((combined_small, canny_small, color_small)).astype(np.uint8)
-        
         undist_img_warped = cv2.warpPerspective(img_undist, self.M, (img_undist.shape[1], img_undist.shape[0]), flags=cv2.INTER_LINEAR)
 
-        if True:
-            y_offset = 0
-            output_size = (1080-360, 1920, 3)
-            ret_img = np.zeros(output_size).astype(np.uint8)
-            warped_small = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
-            warped_semented = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
-            warped_combined = cv2.addWeighted(warped_small, 1, warped_semented, 0.7, 0)
+        # add smaller images of the segmented and warped image
+        y_offset = 0
+        output_size = (720, 1280, 3)
+        ret_img = np.zeros(output_size).astype(np.uint8)
 
-            ret_img[y_offset:img.shape[0]+y_offset, :img.shape[1], :] = img
-            ret_img[y_offset:360+y_offset, img.shape[1]:, :] = stacked_small
-            ret_img[360+y_offset:720+y_offset, img.shape[1]:, :] = warped_combined
-            #ret_img[720:1080, img.shape[1]:, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
-            
-        else:
-            output_size = (1080, 1920, 3)
-            ret_img = np.zeros(output_size).astype(np.uint8)
-            ret_img[:img.shape[0], :img.shape[1], :] = img
-            ret_img[:360, img.shape[1]:, :] = color_small
-            ret_img[360:720, img.shape[1]:, :] = canny_small
-            ret_img[720:1080, img.shape[1]:, :] = combined_small
-            ret_img[720:1080, :640, :] = cv2.resize(undist_img_warped, (0, 0), fx=0.5, fy=0.5)
-            ret_img[720:1080, 640:1280, :] = cv2.resize(comb, (0, 0), fx=0.5, fy=0.5)
-        
+        warped_smaller = cv2.resize(undist_img_warped, (0, 0), fx=0.15, fy=0.15)
+        warped_semented_smaller = cv2.resize(comb, (0, 0), fx=0.15, fy=0.15)
+        warped_combined_smaller = cv2.addWeighted(warped_smaller, 1, warped_semented_smaller, 0.7, 0)
+
+        color_smaller = cv2.resize(color_seg.astype(np.uint8), (0, 0), fx=0.15, fy=0.15).reshape((108, 192, 1)) * 255
+        canny_smaller = cv2.resize(canny.astype(np.uint8), (0, 0), fx=0.15, fy=0.15).reshape((108, 192, 1)) * 255
+        combined_smaller = cv2.resize((color_seg & canny).astype(np.uint8), (0, 0), fx=0.15, fy=0.15).reshape((108, 192, 1)) * 255
+        stacked_smaller = np.dstack((combined_smaller, canny_smaller, color_smaller)).astype(np.uint8)
+
+        ret_img[y_offset:img.shape[0]+y_offset, :img.shape[1], :] = img
+
         # write information to image
-        ret_img = self.writeInfo(ret_img, lc, rc, mid)
+        ret_img = self.writeInfo(ret_img, laneparams)
+
+        offset_small = 26
+        offset_x_small = 720
+        ret_img[offset_small:offset_small + 108, offset_x_small:offset_x_small + 192, :] = stacked_smaller
+        ret_img[offset_small:offset_small + 108, offset_x_small+300:offset_x_small+492, :] = warped_combined_smaller
 
         self.frame += 1
 

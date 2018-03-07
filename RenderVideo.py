@@ -9,6 +9,9 @@ def main():
     white_output = 'processed_videos/challenge_video.mp4'
     clip1 = VideoFileClip("source_videos/challenge_video.mp4")#.subclip(0,5)
 
+    #white_output = 'processed_videos/project_video.mp4'
+    #clip1 = VideoFileClip("source_videos/project_video.mp4")
+
     #white_output = 'processed_videos/harder_challenge_video.mp4'
     #clip1 = VideoFileClip("source_videos/harder_challenge_video.mp4")#.subclip(0,5)
 

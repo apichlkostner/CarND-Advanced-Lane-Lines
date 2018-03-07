@@ -3,41 +3,51 @@ import cv2
 
 class LaneFit():
     def __init__(self):
-        img = None
+        self.img = None
         self.left_fit = None
         self.right_fit = None
         self.firstCall = True
         self.fircal = True
         self.fit = False
-        self.middle = 0.0
+        self.middle_phys = 0.0
+        self.middle_pix = 0
         self.cnt = 0
         self.s1 = None
         self.POLYFIT = True
         self.PLOTFITPOINTS = False
         self.POLYUPDATE = False
 
-    def procVideoImg(self, img, leftx_base=None, rightx_base=None, numwin=9, margin=100, minpix=50):
-        if self.firstCall:
-            self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle = \
-                self.fitLanes(img, leftx_base=leftx_base, rightx_base=rightx_base, numwin=numwin, margin=margin, minpix=minpix)
+    def procVideoImg(self, img, numwin=9, margin=100, minpix=50):
+        """
+        Processing of video images.
+        When lane was fitted before an update based on the last fit is done
+        """
+        if self.firstCall:                
+            lane_params = self.fitLanes(img, numwin=numwin, margin=margin, minpix=minpix)
             self.firstCall = False
         else:
-            self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle = \
-                self.update(img)
+            lane_params = self.update(img)
 
-        return self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle
+        return lane_params
 
     
     def update(self, img):
-        
+        """
+        Update based on fit from last image.
+
+        """
+
         # Identify the x and y positions of all nonzero pixels in the image
         nonzero = img[:,:,0].nonzero()
         nonzero_y = np.array(nonzero[0])
         nonzero_x = np.array(nonzero[1])
 
         margin = 100
+        # not allowed if no call of self.fitLanes was done before
         if not self.firstCall:
+            # polynomial or spline fitting
             if self.POLYFIT:
+                # update polygon as vehicle position changed till last frame
                 if self.POLYUPDATE:
                     # shift of curve while car is driving one frame
                     delta_drive_px = 20
@@ -47,8 +57,8 @@ class LaneFit():
                     self.right_fit[1] += 2. * delta_drive_px * self.right_fit[0]
                     self.right_fit[2] += self.right_fit[0] * delta_drive_px**2 + delta_drive_px + self.right_fit[1]
                 
-                # curve
-                delta_drive_px = 0
+                # calculate curve
+                delta_drive_px = 0    # extrapolate curve for new vehicle position
                 left_lane  = self.left_fit[0]*((nonzero_y+delta_drive_px)**2) + self.left_fit[1]*(nonzero_y+delta_drive_px) + self.left_fit[2]
                 right_lane = self.right_fit[0] * ((nonzero_y+delta_drive_px)**2) + self.right_fit[1] * (nonzero_y+delta_drive_px) + self.right_fit[2]
 
@@ -67,10 +77,12 @@ class LaneFit():
             rightx = nonzero_x[right_lane_inds]
             righty = nonzero_y[right_lane_inds]
 
+            # fit curve to found pixels
             self.fitCurves(leftx, lefty, rightx, righty)
 
             window_img = np.zeros_like(img)
 
+            # plots the found pixel to the image
             if self.PLOTFITPOINTS:
                 window_img[lefty, leftx] = [0, 0, 255]
                 window_img[righty, rightx] = [0, 0, 255]
@@ -81,6 +93,7 @@ class LaneFit():
 
                 y_eval = window_img.shape[0] - 1
 
+                # calculate curve radius
                 left_curverad = ((1 + (2*self.left_fit_phys[0]*y_eval + self.left_fit_phys[1])**2)**1.5) \
                                     / np.absolute(2*self.left_fit_phys[0])
                 right_curverad = ((1 + (2*self.right_fit_phys[0]*y_eval + self.right_fit_phys[1])**2)**1.5) \
@@ -89,7 +102,12 @@ class LaneFit():
                 left_curverad = 1
                 right_curverad = 1
 
-            return self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle
+            lane_params = {'left_fit': self.left_fit, 'right_fit': self.right_fit,
+                           'left_curverad': left_curverad, 'right_curverad': right_curverad,
+                           'middle_phys': self.middle_phys, 'middle_pix': self.middle_pix,
+                           'img': window_img }
+
+            return lane_params
     
     
     def fitCurves(self, leftx, lefty, rightx, righty, kr=6):
@@ -100,11 +118,15 @@ class LaneFit():
         
         #print(str(len(lefty))+'   '+str(len(righty)))
         
+        # only fit if enough points are found
         if len(lefty) > 1000 and len(righty) > 1000:
+            # for every frame with no fit wait one frame
             if self.cnt > 0:
                 self.cnt = self.cnt - 1
             else:       
                 self.fit = True
+
+                # first call -> no exponential averaging
                 if self.fircal:
                     self.left_fit = np.polyfit(lefty, leftx, 2)
                     self.right_fit = np.polyfit(righty, rightx, 2)
@@ -122,20 +144,25 @@ class LaneFit():
                     self.left_fit_phys = (kr * self.left_fit_phys + poly_l) / (kr + 1.)
                     self.right_fit_phys = (kr * self.right_fit_phys + poly_r) / (kr + 1.)
                 
-                # middle point
+                # middle point, used to calculate vehicle position relative to lane
                 bottom = 720
                 left_fitx  = self.left_fit[0]*(bottom**2) + self.left_fit[1]*bottom + self.left_fit[2]
                 right_fitx = self.right_fit[0] * (bottom**2) + self.right_fit[1] * bottom + self.right_fit[2]
-                self.middle = ((self.shape[1] / 2) - ((left_fitx + right_fitx) / 2)) * xm_per_pix
+                self.middle = ((self.shape[1] / 2) - ((left_fitx + right_fitx) / 2))
+                self.middle_phys = ((self.shape[1] / 2) - ((left_fitx + right_fitx) / 2)) * xm_per_pix
         else:
             self.cnt = self.cnt + 1
 
     def plotCurves(self, img):
-        margin = 15
+        """
+        Plots the fitted curves to the image
+        """
+        # size of the plotted curve
+        plotmargin = 15
             
         ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
         
-        # curve
+        # curve as polygon or spline
         if self.POLYFIT:
             left_fitx = self.left_fit[0]*ploty**2 + self.left_fit[1]*ploty + self.left_fit[2]
             right_fitx = self.right_fit[0]*ploty**2 + self.right_fit[1]*ploty + self.right_fit[2]
@@ -143,28 +170,37 @@ class LaneFit():
             left_fitx = self.s_left(ploty)
             right_fitx = self.s_right(ploty)        
 
-        left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-margin, ploty]))])
-        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+margin, 
+        # Plot left and right curve. Fill space inbetween
+        left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-plotmargin, ploty]))])
+        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+plotmargin, 
                                     ploty])))])
         left_line_pts = np.hstack((left_line_window1, left_line_window2))
-        right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-margin, ploty]))])
-        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+margin, 
+
+        right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-plotmargin, ploty]))])
+        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+plotmargin, 
                                     ploty])))])
         right_line_pts = np.hstack((right_line_window1, right_line_window2))
 
         inbetween = np.hstack((left_line_window2, right_line_window1))
 
-        # Draw the lane onto the warped blank image
+        # Draw the lane onto the image
         cv2.fillPoly(img, np.int_([left_line_pts]), (100, 0, 255))
         cv2.fillPoly(img, np.int_([inbetween]), (0, 100, 0))
         cv2.fillPoly(img, np.int_([right_line_pts]), (100, 0, 255))
 
         return img
 
-    def fitLanes(self, img, leftx_base=None, rightx_base=None, numwin=9, margin=100, minpix=50):
+    def fitLanes(self, img, numwin=9, margin=100, minpix=50):
+        """
+        First fit to the lane markings.
+        Uses a sliding window approach.
+        """
         self.shape = img.shape
         out_img = img.copy()
         window_height = np.int(img.shape[0] / numwin)
+
+        # Calculate start position of sliding window for left and right lane marking
+        leftx_base, rightx_base = self.calcBase(img)
         
         # Identify the x and y positions of all nonzero pixels in the image
         nonzero = img.nonzero()
@@ -209,6 +245,7 @@ class LaneFit():
                 if len(good_left_inds) > 1:
                     window_mean = np.int(np.mean(nonzero_x[good_left_inds]))
                     leftx_current = window_mean
+
             if len(good_right_inds) > minpix:
                 window_mean = np.int(np.mean(nonzero_x[good_right_inds]))
                 # remove outliers
@@ -240,19 +277,34 @@ class LaneFit():
             # plot lane borders and area
             window_img  = self.plotCurves(window_img)
 
+            # calculate curve radius in m
             y_eval = window_img.shape[0] - 1
-
             left_curverad = ((1 + (2*self.left_fit_phys[0]*y_eval + self.left_fit_phys[1])**2)**1.5) \
                                 / np.absolute(2*self.left_fit_phys[0])
             right_curverad = ((1 + (2*self.right_fit_phys[0]*y_eval + self.right_fit_phys[1])**2)**1.5) \
                                 / np.absolute(2*self.right_fit_phys[0])
         else:
-            left_curverad = 1
-            right_curverad = 1
+            left_curverad = np.nan
+            right_curverad = np.nan
         
         #out_img = img.copy()
         #result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
         #out_img[nonzero_y[left_lane_inds], nonzero_x[left_lane_inds]] = [255, 0, 0]
         #out_img[nonzero_y[right_lane_inds], nonzero_x[right_lane_inds]] = [0, 0, 255]
 
-        return self.left_fit, self.right_fit, window_img, left_curverad, right_curverad, self.middle
+        lane_params = {'left_fit': self.left_fit, 'right_fit': self.right_fit,
+                       'left_curverad': left_curverad, 'right_curverad': right_curverad,
+                       'middle_phys': self.middle_phys, 'middle_pix': self.middle_pix,
+                       'img': window_img }
+
+        return lane_params
+
+    def calcBase(self, img):
+        histogram = np.sum(img[img.shape[0]//2:,:-2, 0], axis=0)
+
+        midpoint = np.int(histogram.shape[0]/2)
+        
+        leftx_base = np.argmax(histogram[:midpoint])
+        rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+
+        return leftx_base, rightx_base

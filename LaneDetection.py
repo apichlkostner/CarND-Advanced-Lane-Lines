@@ -48,14 +48,23 @@ def main():
     
     horizon = 425
 
-    original_bottom_left_x = 283
-    target_left_x = 300
-    target_right_x = 1002
-    target_top_y = 0
-    target_bottom_y =685
-    src_points = np.float32([[283, 664], [552, 480], [736, 480],  [1015, 664]])
-    dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
-                             [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
+    if False:
+        original_bottom_left_x = 283
+        target_left_x = 300
+        target_right_x = 1002
+        target_top_y = 0
+        target_bottom_y =685
+        src_points = np.float32([[283, 664], [552, 480], [736, 480],  [1015, 664]])
+        dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
+                                [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
+    else:
+        target_left_x = 300
+        target_right_x = 1002
+        target_top_y = 0
+        target_bottom_y =690
+        src_points = np.float32([[283, 664], [548, 480], [736, 480],  [1019, 664]])
+        dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
+                                    [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Mi = cv2.getPerspectiveTransform(dst_points, src_points)
@@ -83,14 +92,22 @@ def main():
     #canny = cv2.Canny(blur_gray, 120, 200)
     canny = cv2.Canny(blur_gray, 40, 80)    
     canny[670:,:] = 0
+
+    canny = np.dstack((canny, canny, canny))
+    #print(src_points.reshape((-1,1,2)).astype(np.int32))
+    #pts = np.array([[10,5],[20,30],[70,20],[50,10]], np.int32)
+    #src_points = pts.reshape((-1,1,2))
+    #print(src_points)
+    canny = cv2.polylines(canny, [src_points.reshape((-1,1,2)).astype(np.int32)], True , (0,255,255), thickness=1)
+
     canny_warped = cv2.warpPerspective(canny, M, (canny.shape[1], canny.shape[0]), flags=cv2.INTER_LINEAR)
-    canny_warped = (canny_warped > 120).astype(np.uint8) * 255
+    #canny_warped = (canny_warped > 120).astype(np.uint8) * 255
 
     #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
     #canny_warped = cv2.dilate(canny_warped, kernel, iterations=1)
     #canny_warped = cv2.erode(canny_warped, kernel, iterations=1)
     
-    plt.imshow(canny_warped, cmap='gray')
+    plt.imshow(canny)
     plt.show()
 
     return
