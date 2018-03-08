@@ -53,17 +53,24 @@ The goals / steps of this project are the following:
 
 You're reading it!
 
-### Camera Calibration
+## Camera Calibration
 
-#### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
+### Computation of the camera matrix and distortion coefficients
 
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
+The camera calibration is done in the class CalibrateCamera in CameraCalibration.py.
+To do the calibration, images of chess boards with size (9, 6) are made from different camera positions. These are fed to the OpenCV algorithm findChessboardCorners() which finds the corners of the chess board and returns the coordinates in the camera coordinate system.
+The world coordinate system is centered at the top left of the chess board and the z coordinates are assumed as zero. Since the chess board size is not know the size of one square is assumed to be 1.0. The length units of the result is then the length of one square.
+To calculate the intrinsic camera parameters and the distortion coefficients the OpenCV function calibrateCamera() is used. It's called with a list ob objectpoints which is are the chess board corners in the world coodinate system described above and the image points in the camera coordinate system.
+The result are the wanted parameters and the rotation and extrinsic parameters which are not used for our purposes.
 
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
+With the parameters a quick check is done by undistorting one of the images with the OpenCV function undistort() and the result is checked:
 
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
+Original image with distortions:
 
 ![alt text][img_dist]
+
+Undistorted image:
+
 ![alt text][img_undist]
 
 ### Pipeline (single images)
@@ -121,13 +128,20 @@ dst = np.float32(
 ```
 
 This resulted in the following source and destination points:
-[283, 664], [548, 480], [736, 480],  [1019, 664]
+ target_left_x = 300
+    target_right_x = 1002
+    target_top_y = 0
+    target_bottom_y =690
+    src_points = np.float32([[283, 664], [548, 480], [736, 480],  [1019, 664]])
+    dst_points = np.float32([[target_left_x, target_bottom_y], [target_left_x, target_top_y],
+                                [target_right_x, target_top_y], [target_right_x, target_bottom_y]])
+
 | Source        | Destination   | 
 |:-------------:|:-------------:| 
-| 283, 664      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+| 283, 664      | 300, 690      | 
+| 548, 480      | 300, 0        |
+| 736, 480      | 1002, 0       |
+| 1019, 664     | 1002, 690     |
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
