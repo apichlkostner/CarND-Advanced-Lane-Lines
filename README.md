@@ -1,13 +1,9 @@
-# Early draft from template
-## Writeup Template
+# **Advanced lane finding project**
 
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
 
----
+# Summary
 
-**Advanced Lane Finding Project**
-
-The goals / steps of this project are the following:
+The steps of this project are the following:
 
 * Computation the camera calibration matrix and distortion coefficients from a set of chessboard images.
 * Undistortion of raw images
@@ -18,29 +14,6 @@ The goals / steps of this project are the following:
 * Warping the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 * Processing of videos
-
-[//]: # (Image References)
-
-[img_dist]: docu_images/calibration2.jpg "Original"
-[img_undist]: docu_images/calibration2_undist.jpg "Undistorted"
-
-[img_original]: docu_images/image0110_challenge_original.jpg "Original"
-[img_chundist]: docu_images/image0110_challenge_undist.jpg "Undistorted"
-[img_seg_bird]: docu_images/image0110_challenge_seg_bird.jpg "Segmented birds eye"
-[img_seg_canny]: docu_images/image0110_challenge_seg_canny.jpg "Segmented canny"
-[img_seg_color]: docu_images/image0110_challenge_seg_color.jpg "Segmented color"
-[img_seg_combined]: docu_images/image0110_challenge_seg_combined.jpg "Segmented combined"
-
-[img_tranf_point]: docu_images/transformationPointsOriginal.png ""
-[img_tranf_point_warped]: docu_images/transformationPointsWarped.png ""
-
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
 
 
 # Camera Calibration
@@ -65,19 +38,7 @@ Left: undistorted image
 
 ## Visualization of the pipeline
 
-
 ![](docu_images/pipeline4.jpg)
-
-Original:
-
-![alt text][img_original]
-
-
-
-Segmentation warped to birds eye view
-
-![alt text][img_seg_bird]
-
 
 ## Image segmentation
 
@@ -105,9 +66,10 @@ Both segmentations were combined using the 'and' operator.
 
 ## Perspective transformation
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+The matrices for the perspective transformation were calculated using the OpenCV function `getPerspectiveTransform()`. The source and destination points needed for this algorithm were achieved by manually finding points in an camera image which shows a straight lane. Points from the region which should be used for the lane detection were choosen from the left and right lane mark at the bottom and the top.
+Corresponding destination points were choosen by setting the x position for both points on the left and for both points on the right lane mark to the same value.
 
-
+Since the camera and it's position don't changes in the videos these parameters were hard coded.
 
 This resulted in the following source and destination points:
 
@@ -118,34 +80,46 @@ This resulted in the following source and destination points:
 | 736, 480      | 1002, 0       |
 | 1019, 664     | 1002, 690     |
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+To verify this transformation the source points were connected with lines which were transformed with the resulting matrix. The warped lines and the lane marks were straight as expected:
 
-![alt text][img_tranf_point]
-![alt text][img_tranf_point_warped]
+![alt text](docu_images/transformationPointsOriginal.png)
+![alt text](docu_images/transformationPointsWarped.png)
 
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+An additional example with the original distorted image and the segmented and warped image of the lane marks with curvature.
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+Original image:
 
-![alt text][image5]
+![alt text](docu_images/image0110_challenge_undist.jpg)
 
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+Segmented and warped to birds eye view:
 
-I did this in lines # through # in my code in `my_other_file.py`
+![alt text](docu_images/image0110_challenge_seg_bird.jpg)
 
-#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+## Fit the lane lines with a polynomial
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
 
-![alt text][image6]
 
----
+## Calculate the lane curvature and the vehicle position
 
-# Pipeline (video)
+
+
+## Result of the pipeline
+
+
+![Processed image](./docu_images/result.jpg)
+
+
+# Pipeline on video
 
 ## Video processed by the pipeline
 
-[Challenge video](./challenge_video.mp4)
+[Project video](./processed_videos/project_video.mp4)
+
+[![Project video](./docu_images/video_project.png)](./processed_videos/project_video.mp4)
+
+[Challenge video](./processed_videos/challenge_video.mp4)
+
+[![Challenge video](./docu_images/video_challenge.png)](./processed_videos/challenge_video.mp4)
 
 ---
 
