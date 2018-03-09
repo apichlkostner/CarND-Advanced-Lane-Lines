@@ -38,17 +38,36 @@ Left: undistorted image
 
 ## Visualization of the pipeline
 
-![](docu_images/pipeline4.jpg)
+The camera image is first undistorted.
+
+Segmentation is done by a color and canny edge detection. Both boolean images were combined with an "and" operator.
+Since the "harder challenge" has frames with lane markings going in all directions no other edge detections algorithm like calculating the direction are used. For easier situations like driving on a highway gradient directions could be used since the lane marks are always in a small range near straight forward.
+Combination is done with an "and" operator which gives the best result. "Or" combinations are better in some situations with shadow but can give too many matches in other situations.
+
+The segmented image is then transformed to bird's eye view.
+
+First line matching is done a sliding window approach. From the histogram of the lower image part the start regions are detected. Since lane marks should go straight forwart at least for a shorter range, the maxima of the histogram both on the left and the right side are a good starting point for the sliding window search.
+The sliding window algorithm subdivides the image in windows with a configurable height and width. The middle of the first window is at the bottom where the histograms maximum is located. Then all true pixels from the segemented image inside the window are saved as matching points. The average in x direction of these points is set as new middle for the next window.
+
+For following frames the polynomial approximations of the lane marks in the last frame are used for a faster detection. All points in a configurable range in x direction to the polynom are saved as new lane mark points and used for the next fit.
+
+From the polynom the lane curvature and the position of the car relative to the lane center are calculated. A visualization of the detected lane is done.
+
+The visualization of the lane is warped back and merged with the original image.
+
+![](docu_images/pipeline5.png)
 
 ## Image segmentation
 
-Base image
+Following the image segmentation is demonstrated.
+
+This is the undistorted base image:
 
 <img src="docu_images/image0110_challenge_undist.jpg" style="max-width: 500px; height: auto;">
 
 ### Canny edge detection
 
-Canny edge detection calculates very thin edges. So the edges are dilatated to fit better to the color segmentation.
+Canny edge detection calculates very thin edges. So the edges are dilated to fit better to the color segmentation.
 
 <img src="docu_images/image0110_challenge_seg_canny.jpg" style="max-width: 500px; height: auto;">
 
@@ -97,19 +116,28 @@ Segmented and warped to birds eye view:
 
 ## Fit the lane lines with a polynomial
 
+To fit the curve a simple second order polynomial approximation is used (f(y)=Ay^2+By+C). The calculation is done by the NumPy function `polyfit()`.
 
+To smooth the detected curves an exponential average of the last curves is calculated (f_average = factor * f_average + (1-factor) * f_fit).
+
+This is done in `LaneFit.fitCurves()`
+
+Tests with spline approximations were done, especially for the "harder challenge" video, but they didn't improve the result. But it might be helpful for future approaches.
 
 ## Calculate the lane curvature and the vehicle position
+With the result the radius of curvature can be calculated to r_curve = (1+(2*A*y+B)^2)^(3/2) / abs(2*A).
 
-
+To get the position of the car relative to the lane center the approximations of the left and right lane marks are evaluated at the bottom position of the image. The middle point between these two curve points is the midpoint of the lane. Since the camera is mounted in the middle of car the difference between the image middle and the lane middle is the position of the car relative to the lane center.
+One image pixel is x direction is about 0.005286m in 3D space so the real position can be calculated.
 
 ## Result of the pipeline
 
+After all steps of the pipeline the resulting image looks like this:
 
 ![Processed image](./docu_images/result.jpg)
 
 
-# Pipeline on video
+# Video
 
 ## Video processed by the pipeline
 
@@ -123,9 +151,9 @@ Segmented and warped to birds eye view:
 
 ---
 
-### Discussion
+# Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+## Problems
 
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
 
@@ -135,3 +163,5 @@ tried:
 - splines
 - different low pass filtering
 - parameter optimization for image segmentation
+
+References:
