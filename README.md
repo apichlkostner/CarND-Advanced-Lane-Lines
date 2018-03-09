@@ -83,6 +83,8 @@ Segmentation warped to birds eye view
 
 Base image
 
+![](docu_images/image0110_challenge_undist.jpg){: style="max-width: 500px; height: auto;"}
+
 <img src="docu_images/image0110_challenge_undist.jpg" style="max-width: 500px; height: auto;">
 
 ### Canny edge detection
