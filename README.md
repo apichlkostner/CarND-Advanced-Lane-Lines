@@ -59,7 +59,7 @@ The visualization of the lane is warped back and merged with the original image.
 
 ## Image segmentation
 
-Following the image segmentation is demonstrated.
+Following the image segmentation is described. The implementation of the different segmentation algorithms is in `ImageSegmentation.py`.
 
 This is the undistorted base image:
 
@@ -67,11 +67,13 @@ This is the undistorted base image:
 
 ### Canny edge detection
 
-Canny edge detection calculates very thin edges. So the edges are dilated to fit better to the color segmentation.
+Canny edge detection calculates very thin edges. So the edges are dilated to fit better to the color segmentation. It can be seen that edge detection alone can show some curves which can't be easily distinguished from the real lane mark.
 
 <img src="docu_images/image0110_challenge_seg_canny.jpg" style="max-width: 500px; height: auto;">
 
 ### Color segmentation
+
+For color segmentation the image is transformed from RGB to HSL colorspace. White is detected with a threshold of the lightness and yellow with a combination of threshols for hue, lightness and saturation. 
 
 Since the left lines are always yellow and the right lanes are always white in the videos used they are also segmented for the corresponding colors. This helped in the harder challenge to reduce reflections from the window.
 
@@ -79,7 +81,7 @@ Since the left lines are always yellow and the right lanes are always white in t
 
 Combined segmentation:
 
-Both segmentations were combined using the 'and' operator.
+Both segmentations were combined using the 'and' operator. This is necessary since there are often object with similar colors to the lane marks. And the roadway surface can have sharp edges, for example in the "challenge" video the left part of the lane was newer than the right and therefore much darker.
 
 <img src="docu_images/image0110_challenge_seg_combined.jpg" style="max-width: 500px; height: auto;">
 
@@ -101,8 +103,8 @@ This resulted in the following source and destination points:
 
 To verify this transformation the source points were connected with lines which were transformed with the resulting matrix. The warped lines and the lane marks were straight as expected:
 
-![alt text](docu_images/transformationPointsOriginal.png)
-![alt text](docu_images/transformationPointsWarped.png)
+![Original](docu_images/transformationPointsOriginal.png)
+![Warped](docu_images/transformationPointsWarped.png)
 
 An additional example with the original distorted image and the segmented and warped image of the lane marks with curvature.
 
@@ -119,6 +121,8 @@ Segmented and warped to birds eye view:
 To fit the curve a simple second order polynomial approximation is used (f(y)=Ay^2+By+C). The calculation is done by the NumPy function `polyfit()`.
 
 To smooth the detected curves an exponential average of the last curves is calculated (f_average = factor * f_average + (1-factor) * f_fit).
+
+If there are bad conditions in the frame the fitted points are normally no sufficient to have a good enough fit. So there is a threshold for the minimum number of fitted pixels used. If not enough pixels are available the polynom is not updated and the last fit is used again.
 
 This is done in `LaneFit.fitCurves()`
 
@@ -149,19 +153,26 @@ After all steps of the pipeline the resulting image looks like this:
 
 [![Challenge video](./docu_images/video_challenge.png)](./processed_videos/challenge_video.mp4)
 
----
+
 
 # Discussion
 
-## Problems
+Having good light conditions it is relatively easy to find a stable lane mark detection with color segmentation alone. But as soon as shadows are on the lane it becomes difficult.
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+With shadow, white becomes darker so the thresholds have to be widened. Additionally the saturation becomes lower and hue changes. So the thresholds for yellow detection also have to be widened.
 
-### Harder challenge:
+On the "harder challenge" video right of the lane there are withered plants and concrete roadway limits which are are very bright and also have edges so they can't be easily distinguished from the lane mark. And they are very near to the lane mark so points from them are often classified as being part of the lane mark.
 
-tried:
-- splines
-- different low pass filtering
-- parameter optimization for image segmentation
+Since curvature is very high and suddenly changes low pass filtering has to be reduced and directions filtering don't helps since the lane can go in all directions from hard left to hard right.
+
+Additional the camera is inside the car and strong reflections on the window show bright structures with many edges. Since they are on the left they can be reduced by using only yellow color segmentation on the left side and white on the right side.
+
+![Harder challenge](./docu_images/harder_challenge.png)
+
+To overcome the problems in the "harder challenge" it was tried to fit the lane with splines and make a prediction where the car will be in the next frame so the algorithm can move along the spline to have a better approximation for the following frames. This helped a bit but was not pursued further since there was not enough time.
+
+
 
 References:
+
+https://www.intmath.com/applications-differentiation/8-radius-curvature.php
