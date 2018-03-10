@@ -143,6 +143,22 @@ After all steps of the pipeline the resulting image looks like this:
 
 # Video
 
+## Software
+
+To start rendering a video the file `RenderVideo.py` has to be called with the video name.
+
+`python3 RenderVideo.py project_video.mp4`
+
+The file is assumed to be located in the folder `source_videos` and the resulting video will be saved in the folder `processed_videos`.
+
+From RenderVideo the class `ProcessImage` is instanciated which does the image segmentation and draws the output image.
+
+Lane fitting is done in the class `LaneFit` by calling the method `procVideoImg()`. For the first frame this method call `fitLanes()` to do a sliding window search. For following frames it calls `update()` to update the curves based on the fit from the last frame.
+
+Helper functions for image processing are implemented in `ImageSegmentation.py`.
+
+For experimenting with single image processing the file `LaneDetection.py` can be used.
+
 ## Video processed by the pipeline
 
 [Project video](./processed_videos/project_video.mp4)
