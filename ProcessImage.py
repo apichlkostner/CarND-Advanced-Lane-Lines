@@ -43,10 +43,21 @@ class ProcessImage():
                         }
             self.roi.update({'top_center': int((self.roi['top_x_left'] + self.roi['top_x_right']) / 2)})
 
-        if calCam != None:
+        if calCam is not None:
             self.calCam = calCam
         else:
             self.calCam = CalibrateCamera.load()
+        
+            if self.calCam is None:
+                images = glob.glob('camera_cal/calibration*.jpg')
+
+                self.calCam = CalibrateCamera()
+
+                self.calCam.findCorners(images, (9, 6))
+
+                self.calCam.calibrateCamera()
+
+                self.calCam.write()
 
         self.laneFit = LaneFit()
 

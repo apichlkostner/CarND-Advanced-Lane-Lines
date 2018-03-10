@@ -6,6 +6,7 @@ from CameraCalibration import CalibrateCamera
 from LaneFit import LaneFit
 from ProcessImage import ProcessImage
 from moviepy.editor import VideoFileClip
+import glob
 
 def main():
     if (len(sys.argv) > 1) and isinstance(sys.argv[1], str):
@@ -32,10 +33,24 @@ def main():
     # transformation back to normal view
     Mi = cv2.getPerspectiveTransform(dst_points, src_points)
 
+    # calculate or load camera calibration
+    calCam = CalibrateCamera.load()
+
+    if calCam == None:
+        images = glob.glob('camera_cal/calibration*.jpg')
+
+        calCam = CalibrateCamera()
+
+        calCam.findCorners(images, (9, 6))
+
+        calCam.calibrateCamera()
+
+        calCam.write()
+
     # class which will process the images, initialize with image size and
     # transformation matrices
     ld = ProcessImage()
-    ld.fit((720, 1280), M, Mi)
+    ld.fit((720, 1280), M, Mi, calCam=calCam)
 
     white_clip = clip1.fl_image(ld.process_image) # color images
 
