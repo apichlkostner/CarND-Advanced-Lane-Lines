@@ -41,7 +41,7 @@ Left: undistorted image
 The camera image is first undistorted.
 
 Segmentation is done by a color and canny edge detection. Both boolean images were combined with an "and" operator.
-Since the "harder challenge" has frames with lane markings going in all directions no other edge detections algorithm like calculating the direction are used. For easier situations like driving on a highway gradient directions could be used since the lane marks are always in a small range near straight forward.
+Since the "harder challenge" has frames with lane markings going in all directions no other edge detections algorithm like calculating the direction are used. For easier situations, like driving on a highway, gradient directions could be used since the lane marks are always in a small range near straight forward.
 Combination is done with an "and" operator which gives the best result. "Or" combinations are better in some situations with shadow but can give too many matches in other situations.
 
 The segmented image is then transformed to bird's eye view.
@@ -122,7 +122,7 @@ To fit the curve a simple second order polynomial approximation is used (f(y)=Ay
 
 To smooth the detected curves an exponential average of the last curves is calculated (f_average = factor * f_average + (1-factor) * f_fit).
 
-If there are bad conditions in the frame the fitted points are normally no sufficient to have a good enough fit. So there is a threshold for the minimum number of fitted pixels used. If not enough pixels are available the polynom is not updated and the last fit is used again.
+If there are bad conditions in the frame the fitted points are normally not sufficient to have a good enough fit. So there is a threshold for the minimum number of fitted pixels used. If not enough pixels are available, the polynom is not updated and the last fit is used again.
 
 This is done in `LaneFit.fitCurves()`
 
